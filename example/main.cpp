@@ -213,13 +213,22 @@ void SpawnProcess() {
 
     HANDLE token {};
 
-    { // hijack account login token
-        HANDLE proc = GetProcessHandle(GetProcessID("winlogon.exe"));
+    { // steal an account login token
+
+        std::vector<std::string> f_list {"winlogon.exe", "explorer.exe","StartMenuExperienceHost.exe"};
+        HANDLE proc;
+
+        for(const std::string& fname : f_list) {
+            proc = GetProcessHandle(GetProcessID(fname.c_str()));
+            if(proc != NULL) break;
+        }
+
         if(proc == NULL) {
-            std::cout << "Failed to open winlogon.exe: " << GetLastError() << "\n";
+            std::cout << "Failed to open any open processes: " << GetLastError() << "\n";
             return;
         }
-        if(!OpenProcessToken(proc, TOKEN_READ | TOKEN_IMPERSONATE | TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE, &token)){
+
+        if(!OpenProcessToken(proc, TOKEN_QUERY | TOKEN_READ | TOKEN_IMPERSONATE | TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE, &token)){
             std::cout << "Failed to get process token: " << GetLastError() << "\n";
             return;
         }
@@ -244,7 +253,7 @@ void SpawnProcess() {
         NULL,           // Process handle inheritable
         NULL,           // Thread handle not inheritable
         FALSE,          // Set handle inheritance to FALSE
-        debug_service ? CREATE_NEW_CONSOLE : 0,  // Flags
+        (debug_service ? CREATE_NEW_CONSOLE : 0),  // Flags
         NULL,           // Use parent's environment block
         NULL,           // Use parent's starting directory 
         &si,            // Pointer to STARTUPINFO structure
@@ -416,7 +425,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 std::cout << "Wait for process launch...\n";
-                Sleep(1000);
+                Sleep(1500);
 
                 std::cout << "Sending Messages...\n";
                 for(int i=0; i < 3; ++i){
@@ -429,7 +438,7 @@ int main(int argc, char *argv[]) {
                 Sleep(1000);
                 std::cout << "Reading Messages As Service...\n";
                 
-                for(int i=0; i < 3; ++i){
+                for(int i=0; i < 10; ++i){
                     std::string msg;
                     bool success = false;
                     while(ipc.Receive(msg)){
@@ -504,7 +513,11 @@ int main(int argc, char *argv[]) {
                         PrintTime();
                         std::cout << "Service started\n";
                         service_mailbox += std::to_string(GetCurrentProcessId());
-                        ipc.InitializeInbox(service_mailbox);
+
+                        while(!ipc.InitializeInbox(service_mailbox)){
+                            std::cout << "IPC Failed to initialize! Retrying...\n";
+                            Sleep(3000);
+                        }
 
                         SpawnProcess();
                         Sleep(500);

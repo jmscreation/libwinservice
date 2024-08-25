@@ -1,4 +1,6 @@
 #include "libwinservice.h"
+#include "elevation.h"
+
 //   FUNCTION: InstallService
 //
 //   PURPOSE: Install the current application as a service to the local
@@ -24,6 +26,7 @@
 //   NOTE: If the function fails to install the service, it prints the error
 //   in the standard output stream for users to diagnose the problem.
 //
+
 bool InstallService(const char* pszServiceName,
                     const char* pszDisplayName,
                     const char* pszDescription,
@@ -41,6 +44,12 @@ bool InstallService(const char* pszServiceName,
     SERVICE_DESCRIPTION description = {LPSTR("")};
     SERVICE_FAILURE_ACTIONS recoveryOptions;
     SC_ACTION actions[3];
+
+    if (!IsElevated())
+    {
+        std::cout << "Must be run as administrator\n";
+        goto Cleanup;
+    }
 
     if (GetModuleFileName(NULL, (LPSTR)szPath, ARRAYSIZE(szPath)) == 0)
     {
@@ -192,6 +201,12 @@ void StartService(const char* pszServiceName)
     SC_HANDLE schService = NULL;
     SERVICE_STATUS ssSvcStatus = {};
 
+    if (!IsElevated())
+    {
+        std::cout << "Must be run as administrator\n";
+        goto Cleanup;
+    }
+
     // Open the local default service control manager database
     schSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_CONNECT);
     if (schSCManager == NULL)
@@ -274,6 +289,12 @@ void UninstallService(const char* pszServiceName)
     SC_HANDLE schSCManager = NULL;
     SC_HANDLE schService = NULL;
     SERVICE_STATUS ssSvcStatus = {};
+
+    if (!IsElevated())
+    {
+        std::cout << "Must be run as administrator\n";
+        goto Cleanup;
+    }
 
     // Open the local default service control manager database
     schSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_CONNECT);
